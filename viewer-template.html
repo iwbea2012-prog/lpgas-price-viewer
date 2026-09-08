@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="器具価格">
+<meta name="theme-color" content="#0b6b5a">
+<meta name="robots" content="noindex,nofollow">
+<title>器具価格 照会</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6b5a'/%3E%3Ctext x='50' y='70' font-size='58' text-anchor='middle' fill='white' font-family='sans-serif'%3E%C2%A5%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230b6b5a'/%3E%3Ctext x='50' y='70' font-size='58' text-anchor='middle' fill='white' font-family='sans-serif'%3E%C2%A5%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#eef1f0; --card:#ffffff; --ink:#17201e; --muted:#657069;
+    --accent:#0b6b5a; --accent-ink:#ffffff; --line:#dfe4e2;
+    --warn:#b4611b; --warn-bg:#fdf0e2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.55;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:0 14px calc(40px + env(safe-area-inset-bottom))}
+  header.bar{
+    position:sticky;top:0;z-index:10;background:var(--accent);color:var(--accent-ink);
+    margin:0 -14px 14px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+    display:flex;align-items:center;gap:10px;
+  }
+  header.bar .ttl{font-weight:700;font-size:17px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  header.bar button{
+    background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:9px;
+    padding:8px 12px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;
+  }
+  header.bar button:active{background:rgba(255,255,255,.3)}
+  .sub{color:var(--muted);font-size:12.5px;margin:-6px 0 12px}
+  .sub.warn{color:var(--warn);font-weight:600}
+  input.search{
+    width:100%;font-size:16px;padding:13px 14px;border:1.5px solid var(--line);
+    border-radius:12px;background:#fff;outline:none;margin-bottom:12px;
+  }
+  input.search:focus{border-color:var(--accent)}
+  .bigbtn{
+    display:block;width:100%;text-align:left;background:var(--card);border:1.5px solid var(--line);
+    border-radius:14px;padding:15px 16px;font-size:16px;font-weight:700;color:var(--ink);
+    cursor:pointer;margin-bottom:14px;
+  }
+  .bigbtn:active{background:#f3f6f5}
+  .bigbtn small{display:block;font-weight:500;color:var(--muted);font-size:12.5px;margin-top:3px}
+  .sec{font-size:12.5px;font-weight:700;color:var(--muted);margin:18px 2px 8px;letter-spacing:.02em}
+  .list{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .list .row{
+    display:flex;align-items:center;gap:12px;min-height:56px;padding:11px 14px;
+    border-top:1px solid var(--line);cursor:pointer;
+  }
+  .list .row:first-child{border-top:0}
+  .list .row:active{background:#f3f6f5}
+  .row .main{flex:1;min-width:0}
+  .row .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .meta{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .price{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .row .date{color:var(--muted);font-size:11.5px;text-align:right;white-space:nowrap}
+  .row .rt{display:flex;flex-direction:column;align-items:flex-end}
+  .chev{color:var(--muted);font-size:13px}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--warn-bg);color:var(--warn);margin-left:6px}
+  .detail{background:#f7faf9;border-top:1px solid var(--line);padding:12px 14px 14px}
+  .kv{display:grid;grid-template-columns:76px 1fr;row-gap:5px;column-gap:10px;font-size:13.5px}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;font-weight:600}
+  .hist{margin-top:10px;font-size:13px}
+  .hist .h{display:flex;justify-content:space-between;padding:4px 0;border-top:1px dashed var(--line)}
+  .hist .h:first-child{border-top:0}
+  .empty{color:var(--muted);text-align:center;padding:38px 10px;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  form.unlock{max-width:380px;margin:10vh auto 0}
+  form.unlock h1{font-size:19px;margin:0 0 4px}
+  form.unlock p{color:var(--muted);font-size:13px;margin:0 0 16px}
+  form.unlock input[type=password]{width:100%;font-size:16px;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;outline:none}
+  form.unlock input[type=password]:focus{border-color:var(--accent)}
+  form.unlock label.ck{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:12px 2px 16px}
+  form.unlock button{width:100%;background:var(--accent);color:#fff;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;cursor:pointer}
+  form.unlock button:disabled{opacity:.5}
+  .err{color:#b3261e;font-size:13px;margin:10px 2px 0;min-height:18px}
+  .grophead{font-weight:700;font-size:14px;margin:16px 2px 6px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script id="payload" type="application/json">__ENCRYPTED_PAYLOAD__</script>
+
+<script>
+(function(){
+"use strict";
+var app = document.getElementById('app');
+var LS_KEY='plv.key.v1', LS_RECENT='plv.recent.v1';
+var BLOB=null, DATA=null;
+var CUST=new Map(), BYCUST=new Map(), RECMAP=new Map();
+
+/* ---------- helpers ---------- */
+function el(html){ var t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function yen(n){ return (n==null||isNaN(n))?'—':'¥'+Number(n).toLocaleString('ja-JP',{maximumFractionDigits:2}); }
+function fmtDate(d){ if(!d) return '—'; var p=String(d).split('-'); return p.length===3?(p[0]+'/'+p[1]+'/'+p[2]):String(d); }
+function daysAgo(d,base){ if(!d) return null; return Math.round((Date.parse(base)-Date.parse(d))/86400000); }
+function normKana(s){
+  return (s==null?'':String(s)).toLowerCase()
+    .replace(/\s+/g,'')
+    .replace(/[ー－‐‑‒–—―-]/g,'-')
+    .replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60);});
+}
+
+/* ---------- crypto ---------- */
+function b64ToBuf(b64){ var bin=atob(b64), u=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); return u; }
+function bufToB64(buf){ var u=new Uint8Array(buf), s=''; for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]); return btoa(s); }
+async function deriveKey(pass, salt, iter){
+  var base=await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:iter,hash:'SHA-256'},
+    base, {name:'AES-GCM',length:256}, true, ['decrypt']);
+}
+async function decryptWith(key){
+  var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBuf(BLOB.iv)}, key, b64ToBuf(BLOB.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+/* ---------- data index ---------- */
+function indexData(){
+  CUST=new Map(); BYCUST=new Map(); RECMAP=new Map();
+  (DATA.customers||[]).forEach(function(c){ CUST.set(c.code,c.name); });
+  (DATA.records||[]).forEach(function(r){
+    r._s = normKana([r.it,r.ic,r.mk].join(' '));
+    r._k = r.cc+''+(r.ic||r.it);
+    RECMAP.set(r._k, r);
+    if(!BYCUST.has(r.cc)) BYCUST.set(r.cc,[]);
+    BYCUST.get(r.cc).push(r);
+  });
+  BYCUST.forEach(function(arr){ arr.sort(function(a,b){ return a.it.localeCompare(b.it,'ja'); }); });
+}
+
+/* ---------- recent ---------- */
+function getRecent(){ try{ return JSON.parse(localStorage.getItem(LS_RECENT)||'[]'); }catch(e){ return []; } }
+function pushRecent(k){
+  var a=getRecent().filter(function(x){return x!==k;});
+  a.unshift(k); a=a.slice(0,12);
+  try{ localStorage.setItem(LS_RECENT, JSON.stringify(a)); }catch(e){}
+}
+
+/* ---------- boot ---------- */
+function readBlob(){
+  try{
+    var raw=document.getElementById('payload').textContent.trim();
+    var b=JSON.parse(raw);
+    return (b && b.ct && b.salt && b.iv) ? b : null;
+  }catch(e){ return null; }
+}
+
+async function bootWithCachedKey(){
+  var kb=localStorage.getItem(LS_KEY);
+  if(!kb) return false;
+  try{
+    var key=await crypto.subtle.importKey('raw', b64ToBuf(kb), {name:'AES-GCM'}, true, ['decrypt']);
+    DATA=await decryptWith(key); indexData(); return true;
+  }catch(e){ localStorage.removeItem(LS_KEY); return false; }
+}
+
+async function doUnlock(pass, remember){
+  var key=await deriveKey(pass, b64ToBuf(BLOB.salt), BLOB.iter||310000);
+  DATA=await decryptWith(key);   /* throws on wrong passphrase */
+  indexData();
+  if(remember){
+    try{ localStorage.setItem(LS_KEY, bufToB64(await crypto.subtle.exportKey('raw', key))); }catch(e){}
+  }
+}
+function lock(){ localStorage.removeItem(LS_KEY); location.hash=''; location.reload(); }
+
+/* ---------- views ---------- */
+function header(title, withBack){
+  var h=el('<header class="bar"></header>');
+  if(withBack){
+    var b=el('<button>← もどる</button>');
+    b.onclick=function(){ history.length>1 ? history.back() : (location.hash='#/'); };
+    h.appendChild(b);
+  }
+  h.appendChild(el('<div class="ttl">'+esc(title)+'</div>'));
+  var lk=el('<button>ロック</button>'); lk.onclick=lock; h.appendChild(lk);
+  return h;
+}
+
+function dataAgeLine(){
+  var d=daysAgo(DATA.builtAt, new Date().toISOString().slice(0,10));
+  var s='データ基準日: '+fmtDate(DATA.builtAt)+'（直近'+DATA.months+'ヶ月分';
+  s+= d!=null ? '・'+d+'日前に作成）' : '）';
+  var cls = (d!=null && d>40) ? 'sub warn' : 'sub';
+  return el('<div class="'+cls+'">'+esc(s)+(d!=null&&d>40?' ⚠ 更新してください':'')+'</div>');
+}
+
+function priceRow(rec, showCust){
+  var stale = daysAgo(rec.l.d, DATA.builtAt);
+  var badge = (stale!=null && stale>90) ? '<span class="badge">単価が古い</span>' : '';
+  var title = showCust ? (CUST.get(rec.cc)||rec.cn) : rec.it;
+  var meta  = showCust ? rec.it : [rec.ic, rec.mk].filter(Boolean).join(' / ');
+  var row=el(
+    '<div class="row">'+
+      '<div class="main"><div class="name">'+esc(title)+badge+'</div>'+
+      (meta?'<div class="meta">'+esc(meta)+'</div>':'')+'</div>'+
+      '<div class="rt"><span class="price">'+yen(rec.l.p)+'</span>'+
+      '<span class="date">'+fmtDate(rec.l.d)+'</span></div>'+
+    '</div>');
+  row.onclick=function(){
+    pushRecent(rec._k);
+    var nx=row.nextElementSibling;
+    if(nx && nx.classList.contains('detail')){ nx.remove(); return; }
+    row.parentNode.insertBefore(detailPanel(rec), row.nextSibling);
+  };
+  return row;
+}
+
+function detailPanel(rec){
+  var stale=daysAgo(rec.l.d, DATA.builtAt);
+  var hist=(rec.h||[]).map(function(x){
+    return '<div class="h"><span>'+fmtDate(x.d)+'</span><span>'+yen(x.p)+
+      (x.q!=null?' <span style="color:var(--muted)">('+x.q+(rec.un||'')+')</span>':'')+'</span></div>';
+  }).join('');
+  return el(
+    '<div class="detail">'+
+      '<dl class="kv">'+
+        '<dt>得意先</dt><dd>'+esc(CUST.get(rec.cc)||rec.cn)+'</dd>'+
+        '<dt>器具名</dt><dd>'+esc(rec.it)+'</dd>'+
+        (rec.ic?'<dt>品番</dt><dd>'+esc(rec.ic)+'</dd>':'')+
+        (rec.mk?'<dt>メーカー</dt><dd>'+esc(rec.mk)+'</dd>':'')+
+        '<dt>直近単価</dt><dd>'+yen(rec.l.p)+'　<span style="color:var(--muted);font-weight:500">'+fmtDate(rec.l.d)+
+          (rec.l.q!=null?' ・ '+rec.l.q+(rec.un||''):'')+'</span></dd>'+
+      '</dl>'+
+      (hist?'<div class="hist"><div class="sec" style="margin:10px 0 4px">これまでの単価</div>'+hist+'</div>':'')+
+      (stale!=null&&stale>90?'<div class="sub warn" style="margin:10px 0 0">前回販売から'+stale+'日。基幹システムで最新を確認してください。</div>':'')+
+    '</div>');
+}
+
+function viewHome(){
+  app.innerHTML='';
+  app.appendChild(header('器具価格 照会', false));
+  app.appendChild(dataAgeLine());
+
+  var all=el('<button class="bigbtn">器具から探す（全得意先を横断）<small>この器具を他店にいくらで売ったか調べる</small></button>');
+  all.onclick=function(){ location.hash='#/all'; };
+  app.appendChild(all);
+
+  var rec=getRecent().map(function(k){return RECMAP.get(k);}).filter(Boolean);
+  if(rec.length){
+    app.appendChild(el('<div class="sec">最近見た単価</div>'));
+    var rl=el('<div class="list"></div>');
+    rec.forEach(function(r){ rl.appendChild(priceRow(r,true)); });
+    app.appendChild(rl);
+  }
+
+  app.appendChild(el('<div class="sec">得意先をえらぶ</div>'));
+  var q=el('<input class="search" type="search" inputmode="search" placeholder="得意先名でしぼりこみ" autocomplete="off">');
+  app.appendChild(q);
+  var list=el('<div class="list"></div>');
+  app.appendChild(list);
+
+  function draw(){
+    var nq=normKana(q.value);
+    list.innerHTML='';
+    var cs=(DATA.customers||[]).filter(function(c){ return !nq || normKana(c.name+' '+c.code).indexOf(nq)>=0; });
+    if(!cs.length){ list.appendChild(el('<div class="empty">該当なし</div>')); return; }
+    cs.forEach(function(c){
+      var n=(BYCUST.get(c.code)||[]).length;
+      var row=el('<div class="row"><div class="main"><div class="name">'+esc(c.name)+'</div>'+
+        '<div class="meta">'+esc(c.code||'')+'　器具 '+n+' 件</div></div><span class="chev">›</span></div>');
+      row.onclick=function(){ location.hash='#/c/'+encodeURIComponent(c.code); };
+      list.appendChild(row);
+    });
+  }
+  q.oninput=draw; draw();
+}
+
+function viewCust(cc){
+  var name=CUST.get(cc);
+  if(name==null){ location.hash='#/'; return; }
+  app.innerHTML='';
+  app.appendChild(header(name, true));
+  var recs=BYCUST.get(cc)||[];
+  app.appendChild(el('<div class="sub">'+esc(name)+' ／ 器具 '+recs.length+' 件</div>'));
+  var q=el('<input class="search" type="search" inputmode="search" placeholder="器具名・品番で検索" autocomplete="off">');
+  app.appendChild(q);
+  var list=el('<div class="list"></div>');
+  app.appendChild(list);
+  function draw(){
+    var nq=normKana(q.value);
+    list.innerHTML='';
+    var rs=recs.filter(function(r){ return !nq || r._s.indexOf(nq)>=0; });
+    if(!rs.length){ list.appendChild(el('<div class="empty">'+(nq?'該当なし':'器具がありません')+'</div>')); return; }
+    rs.slice(0,300).forEach(function(r){ list.appendChild(priceRow(r,false)); });
+    if(rs.length>300) list.appendChild(el('<div class="empty">上位300件を表示。検索でしぼってください。</div>'));
+  }
+  q.oninput=draw; draw();
+  q.focus();
+}
+
+function viewAll(){
+  app.innerHTML='';
+  app.appendChild(header('器具から探す（横断）', true));
+  app.appendChild(el('<div class="sub">器具名を入れると、扱いのある得意先と直近単価を一覧します</div>'));
+  var q=el('<input class="search" type="search" inputmode="search" placeholder="例）給湯器 24号 / K201" autocomplete="off">');
+  app.appendChild(q);
+  var box=el('<div></div>');
+  app.appendChild(box);
+  function draw(){
+    var nq=normKana(q.value);
+    box.innerHTML='';
+    if(!nq){ box.appendChild(el('<div class="empty">器具名を入力してください</div>')); return; }
+    var hits=(DATA.records||[]).filter(function(r){ return r._s.indexOf(nq)>=0; });
+    if(!hits.length){ box.appendChild(el('<div class="empty">該当なし</div>')); return; }
+    var groups=new Map();
+    hits.forEach(function(r){
+      var g=(r.ic||r.it);
+      if(!groups.has(g)) groups.set(g,{label:r.it, code:r.ic, rows:[]});
+      groups.get(g).rows.push(r);
+    });
+    var gs=[...groups.values()].sort(function(a,b){ return a.label.localeCompare(b.label,'ja'); });
+    gs.slice(0,40).forEach(function(g){
+      g.rows.sort(function(a,b){ return (a.l.p||0)-(b.l.p||0); });
+      box.appendChild(el('<div class="grophead">'+esc(g.label)+(g.code?' <span style="color:var(--muted);font-weight:500">'+esc(g.code)+'</span>':'')+
+        ' <span style="color:var(--muted);font-weight:500">('+g.rows.length+'店)</span></div>'));
+      var list=el('<div class="list"></div>');
+      g.rows.forEach(function(r){ list.appendChild(priceRow(r,true)); });
+      box.appendChild(list);
+    });
+    if(gs.length>40) box.appendChild(el('<div class="empty">上位40種を表示。検索をしぼってください。</div>'));
+  }
+  q.oninput=draw; draw();
+  q.focus();
+}
+
+function viewUnlock(msg){
+  app.innerHTML='';
+  var f=el(
+    '<form class="unlock">'+
+      '<h1>🔒 器具価格 照会</h1>'+
+      '<p>合言葉を入力してください（社内で共有しているもの）</p>'+
+      '<input type="password" autocomplete="current-password" placeholder="合言葉" required>'+
+      '<label class="ck"><input type="checkbox" checked> この端末におぼえておく</label>'+
+      '<button type="submit">ひらく</button>'+
+      '<div class="err">'+(msg?esc(msg):'')+'</div>'+
+    '</form>');
+  var pw=f.querySelector('input[type=password]');
+  var ck=f.querySelector('input[type=checkbox]');
+  var btn=f.querySelector('button');
+  var err=f.querySelector('.err');
+  f.onsubmit=async function(e){
+    e.preventDefault();
+    btn.disabled=true; btn.textContent='確認中…'; err.textContent='';
+    try{
+      await doUnlock(pw.value, ck.checked);
+      route();
+    }catch(ex){
+      btn.disabled=false; btn.textContent='ひらく';
+      err.textContent='合言葉が違います。もう一度お試しください。';
+      pw.select();
+    }
+  };
+  app.appendChild(f);
+  pw.focus();
+}
+
+function viewNoData(){
+  app.innerHTML='';
+  app.appendChild(header('器具価格 照会', false));
+  app.appendChild(el('<div class="card"><b>まだデータが取り込まれていません。</b><br><br>'+
+    'PCで <code>builder.html</code> を開き、基幹システムの履歴CSVから <code>index.html</code> を生成して、'+
+    'このファイルと差し替えてください。</div>'));
+}
+
+/* ---------- router ---------- */
+function route(){
+  if(!DATA){ viewUnlock(); return; }
+  var h=location.hash.replace(/^#/,'');
+  var m;
+  if((m=h.match(/^\/c\/(.+)$/))) return viewCust(decodeURIComponent(m[1]));
+  if(h==='/all') return viewAll();
+  return viewHome();
+}
+window.addEventListener('hashchange', route);
+
+/* ---------- start ---------- */
+(async function(){
+  BLOB=readBlob();
+  if(!BLOB){ viewNoData(); return; }
+  if(!(window.crypto && crypto.subtle)){
+    app.innerHTML='<div class="card">この環境では暗号解除ができません。HTTPS の URL で開いてください。</div>'; return;
+  }
+  var ok=await bootWithCachedKey();
+  if(ok) route(); else viewUnlock();
+})();
+})();
+</script>
+</body>
+</html>
