@@ -126,7 +126,7 @@ var GUESS={
   price:[/単価/,/売単価/,/販売単価/,/^価格$/,/price/i,/@/]
 };
 
-var RAW=null;          // {headers:[], rows:[[]]}
+var RAW=null;          // {headers:[], text:"", rowEstimate:N}  ※全行を配列で保持しない
 var LAST_PAYLOAD=null;
 
 var drop=document.getElementById('drop'),
@@ -158,6 +158,7 @@ async function loadFile(file){
     loadinfo.innerHTML='<span style="color:var(--warn)">Excel(.xlsx)は未対応です。基幹システムで「CSV」形式にして書き出してください。</span>';
     return;
   }
+  loadinfo.textContent='読み込み中…';
   var buf=await file.arrayBuffer();
   var bytes=new Uint8Array(buf);
   var enc='utf-8', text;
@@ -167,32 +168,55 @@ async function loadFile(file){
     try{ text=new TextDecoder('utf-8',{fatal:true}).decode(bytes); enc='utf-8'; }
     catch(e){ text=new TextDecoder('shift_jis').decode(bytes); enc='shift_jis'; }
   }
-  var rows=parseCSV(text).filter(function(r){ return r.some(function(c){ return String(c).trim()!==''; }); });
-  if(rows.length<2){ loadinfo.innerHTML='<span style="color:var(--warn)">データ行が読めませんでした。</span>'; return; }
-  RAW={ headers:rows[0].map(function(s){return String(s).trim();}), rows:rows.slice(1) };
-  loadinfo.textContent='読み込み: '+file.name+' ／ 文字コード '+enc+' ／ '+RAW.rows.length+' 行 ／ '+RAW.headers.length+' 列';
+  bytes=null; buf=null;
+  // ヘッダ行だけ取り出す。本文は集計時に逐次読みする（全行を配列に展開しない）。
+  var rdr=makeCsvReader(text);
+  var header=null;
+  do{ header=rdr.next(); }while(header && header.length===1 && String(header[0]).trim()==='');
+  if(!header){ loadinfo.innerHTML='<span style="color:var(--warn)">データ行が読めませんでした。</span>'; return; }
+  var est=0, p=-1;
+  while((p=text.indexOf('\n',p+1))>=0) est++;
+  RAW={ headers:header.map(function(s){return String(s).trim();}), text:text, rowEstimate:Math.max(0,est) };
+  loadinfo.textContent='読み込み: '+file.name+' ／ '+(file.size/1048576).toFixed(1)+'MB ／ 文字コード '+enc+
+    ' ／ 約'+RAW.rowEstimate.toLocaleString('ja-JP')+' 行 ／ '+RAW.headers.length+' 列';
   buildMapUI();
   mapStep.style.display='';
   genStep.style.display='';
   statEl.innerHTML=''; previewEl.innerHTML=''; doneEl.classList.remove('show');
+  LAST_PAYLOAD=null; genBtn.disabled=true;
 }
 
-function parseCSV(text){
-  var rows=[], row=[], field='', i=0, inQ=false, c;
-  while(i<text.length){
-    c=text[i];
-    if(inQ){
-      if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i+=2; continue; } inQ=false; i++; continue; }
-      field+=c; i++; continue;
+/* ---------- CSV 逐次リーダ ----------
+   next() が1レコード（文字列配列）を返す。EOFで null。
+   引用符つきフィールド（内部のカンマ・改行・"" エスケープ）に対応。
+   非引用の連続部分は indexOf で一括スライスするので大きいCSVでも速い。 */
+function makeCsvReader(text){
+  var i=0, n=text.length;
+  function next(){
+    if(i>=n) return null;
+    var row=[], field='', inQ=false, c, k, q;
+    for(;;){
+      if(i>=n){ row.push(field); return row; }
+      c=text.charCodeAt(i);
+      if(inQ){
+        if(c===34){
+          if(text.charCodeAt(i+1)===34){ field+='"'; i+=2; continue; }
+          inQ=false; i++; continue;
+        }
+        q=text.indexOf('"', i);
+        if(q<0){ field+=text.slice(i); i=n; row.push(field); return row; }
+        field+=text.slice(i,q); i=q; continue;
+      }
+      if(c===34){ inQ=true; i++; continue; }
+      if(c===44){ row.push(field); field=''; i++; continue; }      // ,
+      if(c===10){ i++; row.push(field); return row; }              // \n
+      if(c===13){ i++; if(text.charCodeAt(i)===10) i++; row.push(field); return row; } // \r / \r\n
+      k=i;
+      while(k<n){ c=text.charCodeAt(k); if(c===44||c===10||c===13||c===34) break; k++; }
+      field+=text.slice(i,k); i=k;
     }
-    if(c==='"'){ inQ=true; i++; continue; }
-    if(c===','){ row.push(field); field=''; i++; continue; }
-    if(c==='\r'){ i++; continue; }
-    if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; i++; continue; }
-    field+=c; i++;
   }
-  if(field!==''||row.length){ row.push(field); rows.push(row); }
-  return rows;
+  return { next:next };
 }
 
 /* ---------- mapping UI ---------- */
@@ -245,8 +269,20 @@ function toNum(s){
   return isNaN(n)?null:n;
 }
 
-/* ---------- aggregate ---------- */
-function aggregate(){
+/* ---------- aggregate（逐次読み＋チャンク処理） ---------- */
+// 各(得意先×品番)で「直近3件」だけ保持。行数に比例したメモリは使わない。
+function _better(a,b){ return a.d>b.d || (a.d===b.d && a.ord>b.ord); }
+function _insertTop(groups,key,rec){
+  var arr=groups.get(key);
+  if(!arr){ groups.set(key,[rec]); return; }
+  var pos=arr.length, x;
+  for(x=0;x<arr.length;x++){ if(_better(rec,arr[x])){ pos=x; break; } }
+  if(pos>=3) return;
+  arr.splice(pos,0,rec);
+  if(arr.length>3) arr.length=3;
+}
+
+async function aggregateStreamed(onProgress){
   var map=readMapping();
   var H=RAW.headers;
   var col={}; Object.keys(map).forEach(function(k){ col[k]= map[k]? H.indexOf(map[k]) : -1; });
@@ -255,34 +291,41 @@ function aggregate(){
   var cut=new Date(base); cut.setMonth(cut.getMonth()-months);
   var cutISO=cut.toISOString().slice(0,10);
 
-  var groups=new Map(), used=0, skipped=0, minD=null, maxD=null;
-  RAW.rows.forEach(function(r,ord){
+  var groups=new Map(), used=0, skipped=0, total=0, minD=null, maxD=null;
+  var rdr=makeCsvReader(RAW.text);
+  rdr.next(); // ヘッダ行を読み飛ばす
+  var ord=0, batch=0, r;
+  for(;;){
+    if(++batch>=20000){ batch=0; if(onProgress) onProgress(total); await new Promise(function(rs){ setTimeout(rs,0); }); }
+    r=rdr.next();
+    if(r===null) break;
+    if(r.length===1 && r[0]===''){ continue; }
+    total++; ord++;
     var dISO=toISO(col.date>=0?r[col.date]:null);
     var price=toNum(col.price>=0?r[col.price]:null);
-    if(!dISO||price==null){ skipped++; return; }
-    if(dISO<cutISO){ return; }
+    if(!dISO||price==null){ skipped++; continue; }
+    if(dISO<cutISO){ continue; }
     var cc=(col.custCode>=0?String(r[col.custCode]||'').trim():'');
     var cn=(col.custName>=0?String(r[col.custName]||'').trim():'');
     var ic=(col.itemCode>=0?String(r[col.itemCode]||'').trim():'');
     var it=(col.itemName>=0?String(r[col.itemName]||'').trim():'');
-    if(!cc&&!cn){ skipped++; return; }
-    if(!it&&!ic){ skipped++; return; }
+    if(!cc&&!cn){ skipped++; continue; }
+    if(!it&&!ic){ skipped++; continue; }
     var rec={ d:dISO, p:price, q:toNum(col.qty>=0?r[col.qty]:null),
       cc:cc||cn, cn:cn||cc, ic:ic, it:it||ic,
       mk:(col.maker>=0?String(r[col.maker]||'').trim():''),
       un:(col.unit>=0?String(r[col.unit]||'').trim():''), ord:ord };
     var key=rec.cc+''+(ic||it);
-    if(!groups.has(key)) groups.set(key,[]);
-    groups.get(key).push(rec);
+    _insertTop(groups, key, rec);
     used++;
     if(!minD||dISO<minD) minD=dISO;
     if(!maxD||dISO>maxD) maxD=dISO;
-  });
+  }
+  if(onProgress) onProgress(total);
 
   var records=[], custMap=new Map();
   groups.forEach(function(arr){
-    arr.sort(function(a,b){ return a.d<b.d?1:a.d>b.d?-1:b.ord-a.ord; });
-    var top=arr.slice(0,3), g=top[0];
+    var top=arr, g=arr[0];
     custMap.set(g.cc, g.cn);
     records.push({ cc:g.cc, cn:g.cn, ic:g.ic, it:g.it, mk:g.mk, un:g.un,
       l:{d:top[0].d,p:top[0].p,q:top[0].q},
@@ -297,11 +340,11 @@ function aggregate(){
   return {
     payload:{ v:1, builtAt:base, months:months, customers:customers, records:records },
     stats:{ used:used, skipped:skipped, groups:groups.size, cust:customers.length,
-            minD:minD, maxD:maxD, cutISO:cutISO }
+            minD:minD, maxD:maxD, cutISO:cutISO, total:total }
   };
 }
 
-document.getElementById('previewBtn').onclick=function(){
+document.getElementById('previewBtn').onclick=async function(){
   if(!RAW) return;
   var need=['date','itemName','price'];
   var map=readMapping();
@@ -309,7 +352,21 @@ document.getElementById('previewBtn').onclick=function(){
   if(!map.custCode && !map.custName) miss.push('得意先(コードか名前)');
   if(miss.length){ statEl.innerHTML='<div class="warnbox">必須の対応づけが未設定：'+miss.join('、')+'</div>'; return; }
 
-  var res=aggregate();
+  var pv=document.getElementById('previewBtn'); pv.disabled=true;
+  LAST_PAYLOAD=null; genBtn.disabled=true;
+  statEl.innerHTML='<div class="stat" id="progLine">集計を開始しています…</div>';
+  var progLine=document.getElementById('progLine');
+  var estTotal=(RAW.rowEstimate||0);
+  var res;
+  try{
+    res=await aggregateStreamed(function(done){
+      progLine.textContent='集計中… '+done.toLocaleString('ja-JP')+(estTotal?(' / 約'+estTotal.toLocaleString('ja-JP')):'')+' 行';
+    });
+  }catch(e){
+    statEl.innerHTML='<div class="warnbox">集計中にエラー：'+esc(e&&e.message||e)+'</div>';
+    pv.disabled=false; return;
+  }
+  pv.disabled=false;
   LAST_PAYLOAD=res.payload;
   var s=res.stats;
   statEl.innerHTML='<div class="stat">'+
