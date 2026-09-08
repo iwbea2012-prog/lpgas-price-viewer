@@ -78,8 +78,9 @@
   form.unlock{max-width:380px;margin:10vh auto 0}
   form.unlock h1{font-size:19px;margin:0 0 4px}
   form.unlock p{color:var(--muted);font-size:13px;margin:0 0 16px}
-  form.unlock input[type=password]{width:100%;font-size:16px;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;outline:none}
-  form.unlock input[type=password]:focus{border-color:var(--accent)}
+  form.unlock input.pwfield{width:100%;font-size:16px;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;outline:none;-webkit-text-security:disc;text-security:disc}
+  form.unlock input.pwfield.show{-webkit-text-security:none;text-security:none}
+  form.unlock input.pwfield:focus{border-color:var(--accent)}
   form.unlock label.ck{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:12px 2px 16px}
   form.unlock button{width:100%;background:var(--accent);color:#fff;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:700;cursor:pointer}
   form.unlock button:disabled{opacity:.5}
@@ -342,13 +343,16 @@ function viewUnlock(msg){
     '<form class="unlock">'+
       '<h1>🔒 器具価格 照会</h1>'+
       '<p>合言葉を入力してください（社内で共有しているもの）</p>'+
-      '<input type="password" autocomplete="current-password" placeholder="合言葉" required>'+
-      '<label class="ck"><input type="checkbox" checked> この端末におぼえておく</label>'+
+      '<input type="text" class="pwfield" name="passphrase" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="合言葉" required>'+
+      '<label class="ck"><input type="checkbox" class="ck-show"> 合言葉を表示する</label>'+
+      '<label class="ck"><input type="checkbox" class="ck-remember" checked> この端末におぼえておく</label>'+
       '<button type="submit">ひらく</button>'+
       '<div class="err">'+(msg?esc(msg):'')+'</div>'+
     '</form>');
-  var pw=f.querySelector('input[type=password]');
-  var ck=f.querySelector('input[type=checkbox]');
+  var pw=f.querySelector('.pwfield');
+  var ckShow=f.querySelector('.ck-show');
+  var ck=f.querySelector('.ck-remember');
+  ckShow.onchange=function(){ pw.classList.toggle('show', ckShow.checked); };
   var btn=f.querySelector('button');
   var err=f.querySelector('.err');
   f.onsubmit=async function(e){
